@@ -1,0 +1,656 @@
+-- 1.Pre-requisite #######################################################
+ADD JAR /opt/cloudera/parcels/CDH/lib/hive/lib/hive-hcatalog-core-1.1.0-cdh5.11.2.jar;
+
+SET hive.exec.max.dynamic.partitions=100000;
+SET hive.exec.max.dynamic.partitions.pernode=100000;
+
+-- 2.creating workspace  #######################################################
+
+-- drop database maxim_assignment CASCADE;
+Create database if not exists  maxim_assignment;
+use  maxim_assignment;
+
+
+-- 3.Loading data  #######################################################
+
+-- drop  table maxim_assignment.Base_Data_Maxim; 
+
+create external table if not exists maxim_assignment.Base_Data_Maxim(
+VendorID int,
+tpep_pickup_datetime timestamp,
+tpep_dropoff_datetime timestamp,
+passenger_count int,
+trip_distance decimal(10,2),
+RatecodeID int,
+store_and_fwd_flag string,
+PULocationID int,
+DOLocationID int,
+payment_type int,
+fare_amount decimal(10,2),
+extra decimal(10,2),
+mta_tax decimal(10,2),
+tip_amount decimal(10,2),
+tolls_amount decimal(10,2),
+improvement_surcharge decimal(10,2),
+total_amount decimal(10,2)
+
+)
+
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/common_folder/nyc_taxi_data/'
+tblproperties ("skip.header.line.count"="2"); 
+-- skipping the header and blank row
+
+-- querying table for validation
+select * from maxim_assignment.Base_Data_Maxim BDM;
+select count(*) from maxim_assignment.Base_Data_Maxim BDM;
+-- 18793079 records
+
+
+
+
+-- 4.sanity checks  #######################################################
+--######### Basic Data Quality Checks
+-- 1.How many records has each TPEP provider provided? 
+-- Write a query that summarises the number of records of each provider.
+select vendorid,count(*) from maxim_assignment.Base_Data_Maxim BDM
+group by vendorid;
+-- 1	8447149
+-- 2	10345930
+-- Vendor 2 has lager chuck of data
+select 10345930/18793079;
+-- 55% od data belong to vendor2 , that leaves 45% of vendor 1
+
+-- 4.A.check for empty cells   #######################################################
+select sum(case when 	VendorID 	 is null then 1 else 0 end) 	VendorID 	,
+sum(case when 	tpep_pickup_datetime 	 is null then 1 else 0 end) 	tpep_pickup_datetime 	,
+sum(case when 	tpep_dropoff_datetime 	 is null then 1 else 0 end) 	tpep_dropoff_datetime 	,
+sum(case when 	passenger_count 	 is null then 1 else 0 end) 	passenger_count 	,
+sum(case when 	trip_distance 	 is null then 1 else 0 end) 	trip_distance 	,
+sum(case when 	RatecodeID 	 is null then 1 else 0 end) 	RatecodeID 	,
+sum(case when 	store_and_fwd_flag 	 is null then 1 else 0 end) 	store_and_fwd_flag 	,
+sum(case when 	PULocationID 	 is null then 1 else 0 end) 	PULocationID 	,
+sum(case when 	DOLocationID 	 is null then 1 else 0 end) 	DOLocationID 	,
+sum(case when 	payment_type 	 is null then 1 else 0 end) 	payment_type 	,
+sum(case when 	fare_amount 	 is null then 1 else 0 end) 	fare_amount 	,
+sum(case when 	extra 	 is null then 1 else 0 end) 	extra 	,
+sum(case when 	mta_tax 	 is null then 1 else 0 end) 	mta_tax 	,
+sum(case when 	tip_amount 	 is null then 1 else 0 end) 	tip_amount 	,
+sum(case when 	tolls_amount 	 is null then 1 else 0 end) 	tolls_amount 	,
+sum(case when 	improvement_surcharge 	 is null then 1 else 0 end) 	improvement_surcharge 	,
+sum(case when 	total_amount 	 is null then 1 else 0 end) 	total_amount 	
+from maxim_assignment.Base_Data_Maxim BDM;
+-- all zero's
+
+-- 4.B.range of data  #######################################################
+select max(VendorID ) max_VendorID	,	min(VendorID ) min_VendorID	,
+max(tpep_pickup_datetime ) max_tpep_pickup_datetime	,	min(tpep_pickup_datetime ) min_tpep_pickup_datetime	,
+max(tpep_dropoff_datetime ) max_tpep_dropoff_datetime	,	min(tpep_dropoff_datetime ) min_tpep_dropoff_datetime	,
+max(passenger_count ) max_passenger_count	,	min(passenger_count ) min_passenger_count	,
+max(trip_distance ) max_trip_distance	,	min(trip_distance ) min_trip_distance	,
+max(RatecodeID ) max_RatecodeID	,	min(RatecodeID ) min_RatecodeID	,
+max(store_and_fwd_flag ) max_store_and_fwd_flag	,	min(store_and_fwd_flag ) min_store_and_fwd_flag	,
+max(PULocationID ) max_PULocationID	,	min(PULocationID ) min_PULocationID	,
+max(DOLocationID ) max_DOLocationID	,	min(DOLocationID ) min_DOLocationID	,
+max(payment_type ) max_payment_type	,	min(payment_type ) min_payment_type	,
+max(fare_amount ) max_fare_amount	,	min(fare_amount ) min_fare_amount	,
+max(extra ) max_extra	,	min(extra ) min_extra	,
+max(mta_tax ) max_mta_tax	,	min(mta_tax ) min_mta_tax	,
+max(tip_amount ) max_tip_amount	,	min(tip_amount ) min_tip_amount	,
+max(tolls_amount ) max_tolls_amount	,	min(tolls_amount ) min_tolls_amount	,
+max(improvement_surcharge ) max_improvement_surcharge	,	min(improvement_surcharge ) min_improvement_surcharge	,
+max(total_amount ) max_total_amount	,	min(total_amount ) min_total_amount		
+from maxim_assignment.Base_Data_Maxim BDM;
+-- max_vendorid,min_vendorid,max_tpep_pickup_datetime,min_tpep_pickup_datetime,max_tpep_dropoff_datetime,min_tpep_dropoff_datetime,max_passenger_count
+-- 2,               1,          2041-11-15 02:57:16.0,2001-01-01 00:04:13.0,    2041-11-15 03:12:19.0,      2001-01-01 00:04:51.0,  192,                    
+
+-- ,min_passenger_count,max_trip_distance,min_trip_distance,max_ratecodeid,min_ratecodeid,max_store_and_fwd_flag,min_store_and_fwd_flag,
+--  0,                       702.5,          0,                 99,                 1,              Y,                  N,              
+
+-- max_pulocationid,min_pulocationid,max_dolocationid,min_dolocationid,max_payment_type,min_payment_type,max_fare_amount,min_fare_amount,max_extra,min_extra,
+--          265,            1,              265,            1,              4,                  1,          393221.5,       -499,           69.8,   -48.64,   
+
+-- max_mta_tax,min_mta_tax,max_tip_amount,min_tip_amount,max_tolls_amount,min_tolls_amount,max_improvement_surcharge,min_improvement_surcharge,max_total_amount,min_total_amount
+--  117.85,     -0.5,           496,            -218,           1018.95,    -19,1,              -0.3,                   393222.32,                  -499.3
+
+-- column which seems to match the data disctionary #############################################################
+-- pulocationid,dolocationid:- pickup and drop location are raning from 1 to 265
+-- payment_type in data is spread between 1-4 which is with provided values of 1-6
+
+
+
+--###################################################################################
+
+-- columns that are not matching data dictionary
+-- 4.C.Checking for remaining individual columns based on their range and metada provided #######################################################
+
+-- vendorid is fine; values between two provider of 1 & 2
+
+-- Basic Data Quality Checks######################
+-- 2.The data provided is for months November and December only. 
+-- Check whether the data is consistent, and if not, identify the data quality issues.
+-- ###########################################################################
+-- Mention all data quality issues in comments.
+-- tpep_pickup_datetime #############################
+-- the data is for two months Nov 2017 & Dec 2017
+-- any day before 1-nov-2017 and after 31-dec-2017(represent as >= 1-jan-2018) is out of context
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where BDM.tpep_pickup_datetime < '2017-11-1 00:00:00.0' or tpep_pickup_datetime>='2018-01-01 00:00:00.0';
+-- 315 records are not in the range
+select  vendorid, count(*)from  maxim_assignment.Base_Data_Maxim BDM 
+where BDM.tpep_pickup_datetime < '2017-11-1 00:00:00.0' or tpep_pickup_datetime>='2018-01-01 00:00:00.0'
+group by vendorid;
+-- seems vendor 2 is at fault.
+-- 2	315
+
+-- tpep_dropoff_datetime ###################################################
+-- The drop may have happened the next day hence the drop time is allowed to be till 1 jan 2018(represent as >= 2-jan-2018)
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where BDM.tpep_dropoff_datetime < '2017-11-1 00:00:00.0' or tpep_dropoff_datetime>='2018-01-02 00:00:00.0';
+-- 159 records in total are not in range
+
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where BDM.tpep_dropoff_datetime < '2017-11-1 00:00:00.0' or tpep_dropoff_datetime>='2018-01-02 00:00:00.0'
+group by vendorid;
+-- vendor 1 has 2 records
+-- vendor 2 has 157 records
+-- we will evaluate vendor 1 a lil more in details, since it has only two records
+select * from  maxim_assignment.Base_Data_Maxim BDM 
+where (BDM.tpep_dropoff_datetime < '2017-11-1 00:00:00.0' or tpep_dropoff_datetime>='2018-01-02 00:00:00.0')
+and vendorid=1;
+-- seems like the data is corrupt one record ending far in future(2019) and one in past(2016)
+
+-- drop of time can't be greater or equal too pick up time
+select count(*) from maxim_assignment.Base_Data_Maxim BDM 
+where BDM.tpep_dropoff_datetime<=BDM.tpep_pickup_datetime;
+-- 18421
+select 18421/ 18793079;
+-- 0.0009,a smaller set of records can be deleted/ignored
+select vendorid, count(*) from maxim_assignment.Base_Data_Maxim BDM 
+where BDM.tpep_dropoff_datetime<=BDM.tpep_pickup_datetime
+group by vendorid;
+-- 1	17226
+-- 2	1195
+-- Vendor 1 seems to be at fault lets evaluate few of its records
+
+select * from maxim_assignment.Base_Data_Maxim BDM 
+where BDM.tpep_dropoff_datetime<=BDM.tpep_pickup_datetime and vendorid=1;
+-- well location id's for pick up and drop are changing and the billing seems to be different everytime
+-- But since we can't be sure of what actual event took place and teh record set is small
+-- we will ignore the records
+
+
+-- passenger_count ######################################################################
+select passenger_count, count(*) from  maxim_assignment.Base_Data_Maxim BDM  group by passenger_count;
+--	0	108970
+--	1	13251273
+--	2	2816147
+--	3	810776
+--	4	398856
+--	5	875854
+--	6	531011
+--	7	75
+--	8	60
+--	9	56
+--	192	1
+-- passenger count above 6 is small, like 7,8,9, may be bigger car, or driver manual entry mistake
+-- 192 is a single records definately an manual error
+select 108970/18793079;
+--0.005 %
+-- 0 again seems like an disinterested driver not putting in details, or an empty parcel being sent in teh cab
+-- Lets see which vendor is at fault here
+select vendorid,passenger_count, count(*) 
+from  maxim_assignment.Base_Data_Maxim BDM 
+where passenger_count in  (0,7,8,9,192) group by vendorid,passenger_count
+order by passenger_count,vendorid;
+-- we will ignore 0 in passenger_count as the count or records are not too high and can be to be ignored
+-- 192 record can be ignored, remaing records we will keep as is assuming that they are bigger cars
+--vendorid passenger_count count
+-- 1	        0	       108750
+-- 2	        0	        220
+-- Vendor 1 seems to be at fault w.r.t 0 passenger_count
+
+
+-- trip_distance ########################################
+-- max_trip_distance,min_trip_distance
+--      702.5,			0,
+-- Data Dictionary:- The elapsed trip distance in miles reported by the taximeter.
+select  count(*) from  maxim_assignment.Base_Data_Maxim BDM where trip_distance<=0;
+--120017 out of 18793079 small set
+select 120017/18793079;
+-- 0.00638623399603652
+-- we will ignore this data
+select  vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM where trip_distance<=0 group by vendorid;
+-- 1 	68747
+-- 2    51270
+-- Both vendor seems to be equally responsible for this
+
+-- ratecodeid ########################
+select  ratecodeid,count(*) from  maxim_assignment.Base_Data_Maxim BDM group by ratecodeid;
+-- 1-6 are valid id as per teh metadata, and 99 value based 178 records are incorrect 
+-- we will ignore the 178 records
+-- vendorid wise analysis
+select vendorid , count(*) 
+from  maxim_assignment.Base_Data_Maxim BDM 
+where ratecodeid=99
+group by vendorid;
+-- 1	172
+-- 2	6
+-- Vendor 1 is the mazor contributor towards this data discripency
+
+-- store_and_fwd_flag ######################################################
+select  store_and_fwd_flag,count(*) from  maxim_assignment.Base_Data_Maxim BDM group by store_and_fwd_flag;
+-- the value of yes and no are fine
+
+-- fare_amount
+-- max_fare_amount,min_fare_amount,
+-- 393221.5,       -499,
+-- Data Dictionary :- The time-and-distance fare calculated by the meter.
+
+select percentile_approx(fare_amount,array(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.99)) 
+from  maxim_assignment.Base_Data_Maxim BDM;
+-- [5.0,6.0,7.0,8.0,9.5,11.0,13.0,17.0,25.0,52.0]
+-- these values are acceptable lets tru a smaller percentile value
+select percentile_approx(fare_amount,array(0.01,0.999)) 
+from  maxim_assignment.Base_Data_Maxim BDM;
+-- [3.5,88.5]
+-- even these values are within range
+-- seems like the negative values and very high values are wrong data or outliner.
+-- we can easily ignore negative values
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where fare_amount<0;
+-- 9372 negative values
+--  lets find a upper limit for these fare values
+select count(*)
+from  maxim_assignment.Base_Data_Maxim BDM where fare_amount>100;
+-- 12361 records
+-- let's try a bigger number
+select *
+from  maxim_assignment.Base_Data_Maxim BDM where fare_amount>1000;
+-- 9 records fall in this category 390000 values seems to be wrong
+-- some these records have same pickup and drop location, may be the trip was circular
+-- although all these values look like outliner , if we had businees team access we would have requested them to validate.
+-- due to lack of grond to reject other values we will reject only 39 th and higher.
+-- Vendor wise
+select vendorid ,count(*)
+from  maxim_assignment.Base_Data_Maxim BDM
+where fare_amount>390000 or fare_amount<0  group by vendorid;
+-- 1	2
+-- 2	9372
+-- Vendor 2 is the major portion of the corrupt data
+
+-- extra ##################################################################
+-- max_extra,min_extra
+-- 69.8,   -48.64,
+-- extra ranges between 69.8 --  -48.64, as seen previously by the min and max query
+-- But data disctionary says :-Miscellaneous extras and surcharges. 
+-- Currently, this only includes the $0.50 and $1 rush hour and overnight charges.
+-- hence we will reject these values let's verify their count
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where extra not in (0,0.5,1);
+-- 78260
+select 78260/18793079;
+-- 0.004164 this data can be safely ignored
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM where extra not in (0,0.5,1)
+ group by vendorid;
+--  1	29536
+--	2	48724
+-- both vendro seems to at fault
+-- may be the understanding w.r.t these extra column is missing 
+-- as these are the only column where vendor 1 is also looking malicious
+
+-- mta_tax  #################################################
+-- max_mta_tax,min_mta_tax
+-- 117.85,     -0.5,
+-- Data Dictionary :-$0.50 MTA tax that is automatically triggered based on the metered rate in use.
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where mta_tax not in (0,0.5);
+select 9136/18793079;
+--0.0004 smaller set, based on data disctionary we would ignore these
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where mta_tax not in (0,0.5) group by vendorid;
+-- Both vendor are equally responsible, 
+--  1		20
+--	2		9116
+-- Vendor 2 is again mazorly at fault
+
+
+-- tip_amount ###############################################################
+-- max_tip_amount,min_tip_amount
+--   496,            -218,
+-- Data dictionary - Tip amount – This field is automatically populated for credit card tips. 
+-- Cash tips are not included.
+--negative values
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where tip_amount <0;
+-- only 97 values are negative can be easily be ignored
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where tip_amount <0 group by vendorid;
+-- all belong to vendor 2
+
+-- Let's chek if their are non credit card based tips
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where Payment_type!=1 and tip_amount>0;
+-- 192 records have payment mode other than credit and still have tip amount greate than 0
+-- we will ignore these records to sanity as well.
+
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM
+where Payment_type!=1 and tip_amount>0  group by vendorid;
+-- 1-192
+-- All records belong to vendor 1
+-- we will remove these records as well
+-- tolls_amount ################################################################
+-- max_tolls_amount,min_tolls_amount,
+-- 1018.95,    -19,
+-- Data Dictionary:- Total amount of all tolls paid in trip. 
+-- The value can't be negative
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where tolls_amount <0;
+-- only 41 records can be safely ignored
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where tolls_amount <0
+group by vendorid;
+-- All vendor 2
+
+-- improvement_surcharge#################################################
+-- max_improvement_surcharge,min_improvement_surcharge,
+--  -0.3,                   393222.32
+-- Data Dictionary :- $0.30 improvement surcharge assessed trips at the flag drop. 
+-- The improvement surcharge began being levied in 2015. 
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where improvement_surcharge not in (0,0.3);
+-- only 9413  can be easily ignored
+-- vendor wise
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where improvement_surcharge not in (0,0.3) 
+group by vendorid;
+-- All records belong to vendor 2
+
+
+-- total_amount #####################################################################
+-- ,max_total_amount,min_total_amount
+--  393222.32,                  -499.3
+--Data Dictionary:-  The total amount charged to passengers. Does not include cash tips
+-- can be negative and has similar high value as fare_amount, we will check this with similar queries
+select count(*) from  maxim_assignment.Base_Data_Maxim BDM where total_amount<0;
+-- 9372 can be easily ignored
+-- Higehr value check
+select * from  maxim_assignment.Base_Data_Maxim BDM where total_amount>1000;
+-- 11 almost same as teh 9 that we found earlier, again we will remove 390000 above values
+-- Again we have no business acces to reject values raing till 8000 but 390000 for sure seems to high for a cab ride
+-- vendor wise
+select vendorid,count(*) from  maxim_assignment.Base_Data_Maxim BDM 
+where total_amount>1000 or total_amount<0 
+group by vendorid;
+-- 1	9
+-- 2	9374
+-- Group 2 highly dominate in teh corrupt data section
+
+
+-- Basic Data Quality Checks ###########################################
+-- 3.You might have encountered unusual or erroneous rows in the dataset. 
+-- Can you conclude which vendor is doing a bad job in providing the records using different columns of the dataset? Summarise your conclusions based on every column where these errors are present.
+-- For example,  There are unusual passenger count i.e 0 or 192 which is unusual.
+
+-- For the data It's mostly vendor 2 that is providing faulty data.
+-- Below is teh list of problemtic data they have provided column wise
+-- invalid values for 1.total_amount , 2.improvement_surcharge,3.tolls_amount, 4.tip_amount,mta_tax, 
+--  5.fare_amount,6.passenger_count, 7.pickup and 8.drop off time
+-- ####################################
+-- For the column extra both vendor seems to be equally at fault
+-- Vendor 1 for has few tip amount where the payment mode is not credit card
+-- ##########################################################
+-- But overall Vendor 2 is definately not providing correct data.
+
+--###############################################################################################################
+
+use maxim_assignment;
+-- Before answering the below questions, you need to create a clean, ORC partitioned table for analysis.
+-- Remove all the erroneous rows.
+
+-- We will be partinening on the month column first as we need to answer question comparing between the two
+-- since we expect only two month data to pass from out filters year is not an any use in partionening
+
+-- Our secondarly partition is based on Vendor , although the question don't call for this one
+-- In general if we were analysing this data freely we would still want the partitionening to be done this way
+-- drop table maxim_assignment.ParOrc_Data_Maxim;
+Create external table if not exists maxim_assignment.ParOrc_Data_Maxim(
+tpep_pickup_datetime timestamp,
+tpep_dropoff_datetime timestamp,
+passenger_count int,
+trip_distance decimal(10,2),
+RatecodeID int,
+store_and_fwd_flag string,
+PULocationID int,
+DOLocationID int,
+payment_type int,
+fare_amount decimal(10,2),
+extra decimal(10,2),
+mta_tax decimal(10,2),
+tip_amount decimal(10,2),
+tolls_amount decimal(10,2),
+improvement_surcharge decimal(10,2),
+total_amount decimal(10,2)
+)
+partitioned by (Mnth int,VendorID int)
+stored as orc location '/user/maximrohit_gmail/Assignment_NYTAXI_2'
+tblproperties ("orc.compress"="SNAPPY");
+
+-- Posting data
+insert overwrite table maxim_assignment.ParOrc_Data_Maxim partition(Mnth,VendorID)
+select 
+tpep_pickup_datetime,
+tpep_dropoff_datetime,
+passenger_count,
+trip_distance,
+RatecodeID,
+store_and_fwd_flag,
+PULocationID,
+DOLocationID,
+payment_type,
+fare_amount,
+extra,
+mta_tax,
+tip_amount,
+tolls_amount,
+improvement_surcharge,
+total_amount,
+month(tpep_pickup_datetime) Mnth,
+VendorID
+from  maxim_assignment.Base_Data_Maxim BDM
+where  (BDM.tpep_pickup_datetime >='2017-11-1 00:00:00.0' and tpep_pickup_datetime<'2018-01-01 00:00:00.0') and
+( BDM.tpep_dropoff_datetime >= '2017-11-1 00:00:00.0' and tpep_dropoff_datetime<'2018-01-02 00:00:00.0') and
+(BDM.tpep_dropoff_datetime>BDM.tpep_pickup_datetime) and
+(passenger_count not in (0,192)) and
+(trip_distance>0) and 
+(ratecodeid!=99) and
+(fare_amount<=390000 and fare_amount>0 ) and
+ (extra in (0,0.5,1)) and
+ (mta_tax  in (0,0.5)) and 
+((tip_amount >=0 and Payment_type=1) or (Payment_type!=1 and tip_amount=0)) and
+( tolls_amount >=0) and
+( improvement_surcharge in (0,0.3)) and
+(total_amount<=390000 and total_amount>0 ) ;
+
+
+
+select count(*) from maxim_assignment.ParOrc_Data_Maxim;
+--  18482572
+select 18793079-18482572;
+-- 310507 were removed
+select 310507/18793079;
+-- amounting to 1.65% of data
+
+-- Analysis-I ##################################################
+
+-- 1 .Compare the overall average fare per trip for November and December.#########################################
+select mnth,round(avg(total_amount),2),round(avg(fare_amount),2)
+from maxim_assignment.ParOrc_Data_Maxim  group by mnth;
+-- Month Avg_total_amt Avg_fare_amount
+-- 12	    15.9	    12.71
+-- 11	    16.19	    12.9
+select 16.19-15.9, 12.9-12.71;
+-- Overall the month Novemeber seems to be better considering total amount.
+-- Also the difference in fare amount avg is on the lower side when compared to total amount
+-- this signifies that exta tax and charges are also coming in play during the month of November
+
+-- 2. Explore the ‘number of passengers per trip’ - how many trips are made by each level of ‘Passenger_count’? 
+-- Do most people travel solo or with other people?#############################################################
+select passenger_count,round((count(*)*100/18482572),4) cnt
+from maxim_assignment.ParOrc_Data_Maxim  group by passenger_count
+order by cnt desc;
+--  1	70.9
+--	2	15.07
+--	5	4.7
+--	3	4.34
+--	6	2.85
+--	4	2.14
+-- Solo rides are most common , dominant infact with almost 71% od data belonging to them
+-- Dual rides are teh conly other significant category with 15% occupancy
+-- Rest all are marfinal below 5 %
+-- value for 9,8,7 are two small to be of any significance, may be special limo rides, corrupt data
+select passenger_count,count(*) cnt
+from maxim_assignment.ParOrc_Data_Maxim where passenger_count in (9,8,7) 
+group by passenger_count
+order by cnt desc;
+-- 7	27
+-- 8	24
+-- 9	24
+
+
+-- 3.Which is the most preferred mode of payment? ##############################################################
+select payment_type,round((count(*)*100/18482572),4) cnt
+from maxim_assignment.ParOrc_Data_Maxim  group by payment_type
+order by cnt desc;
+--1	67.4705 Credit card
+--2	32.0043 Cash
+--3	0.4099  No charge
+--4	0.1154  Dispute
+-- Credit card pays are dominant with 67.5% and cash payment are 2nd highest paymnet 32%
+-- rest all modes are negligable
+-- 5 & 6 are not existance as previsously seen.
+
+-- 4.What is the average tip paid per trip? 
+-- Compare the average tip with the 25th, 50th and 75th percentiles and 
+-- comment whether the ‘average tip’ is a representative statistic (of the central tendency) of ‘tip amount paid’. 
+-- Hint: You may use percentile_approx(DOUBLE col, p): 
+-- Returns an approximate pth percentile of a numeric column (including floating point types) in the group.
+select round(avg(tip_amount),2)  
+from maxim_assignment.ParOrc_Data_Maxim;
+-- 1.82
+select percentile_approx(tip_amount,array(0.25,0.40,0.45,0.50,0.60,0.65,0.75))  
+from maxim_assignment.ParOrc_Data_Maxim;
+--   25%, 0.40, 0.45, 50%,  60%,  65%,  75%
+-- 	[0.0, 1.0 , 1.15, 1.36, 1.76, 1.997, 2.45]
+-- From the %centile values we can see that data is skewed towards teh higher side.
+-- 25% or more values bein zero tip do play a high part in this behaviour
+-- again the median 1.36 is much lower then the avg 1.82 due to the skewness towards higher values
+-- Hence mean is not representative statistic of centeral tendency here.
+-- It woudl be advised to use median instead of mean for this particular column during analysis
+
+
+-- 5. Explore the ‘Extra’ (charge) variable - what fraction of total trips have an extra charge is levied? ###############################################
+select extra,round((count(*)*100/18482572),4) cnt from (
+select case when extra>0 then 1 else 0 end  extra
+from maxim_assignment.ParOrc_Data_Maxim ) T
+group by extra
+order by cnt desc;
+-- Extra applied    %age records
+--      0	        53.8699
+--      1	        46.1301
+-- The distribusion is fairly even with 46.13% records having extra charges applied , where as  53.87% have no extra charges applied
+
+
+-- Analysis-II ###########################################################################################################################
+
+-- 1. What is the correlation between the number of passengers on any given trip, and the tip paid per trip? #########################################################
+--    Do multiple travellers tip more compared to solo travellers? Hint: Use CORR(Col_1, Col_2)
+select round(corr(passenger_count, tip_amount),4) from maxim_assignment.ParOrc_Data_Maxim;
+-- -0.0046
+-- the value is fairly small although negative but its would be fair to say that passenger count is unrealted to the tip amount paid.
+select round(corr(is_solo, tip_amount),4) from 
+(select case when passenger_count=1 then 1 else 0 end is_solo,tip_amount 
+from maxim_assignment.ParOrc_Data_Maxim ) T;
+-- 0.0054, comparing only single vs multiple rider count their is still very low co-relation
+select is_solo,round(avg(tip_amount),4) from 
+(select case when passenger_count=1 then 1 else 0 end is_solo,tip_amount 
+from maxim_assignment.ParOrc_Data_Maxim ) T group by is_solo;
+--  0	1.803
+--	1	1.833
+-- Values are almost same 
+
+
+
+-- 2. Segregate the data into five segments of ‘tip paid’: [0-5), [5-10), [10-15) , [15-20) and >=20. #######################################################
+--    Calculate the percentage share of each bucket (i.e. the fraction of trips falling in each bucket).
+select Tip_range, round((count(*)*100/18482572),4) cnt
+from (select
+case when (tip_amount>=0 and tip_amount<5)   then '[0-5)' 
+     when (tip_amount>=5 and tip_amount<10)  then '[5-10)' 
+     when (tip_amount>=10 and tip_amount<15) then '[10-15)'
+     when (tip_amount>=15 and tip_amount<20) then '[15-20)'
+     when (tip_amount>=20)                   then '>=20' end Tip_range
+     from maxim_assignment.ParOrc_Data_Maxim) T 
+     group by Tip_range
+     order by cnt desc;
+-- [0-5)	92.4104
+-- [5-10)	5.6237
+-- [10-15)	1.6848
+-- [15-20)	0.1912
+-- >=20	    0.0899
+-- 0-5 range is the most prominate group with 92.4% records, we already know 25%+ of these are 0 values from teh precious percentile based check
+-- 5-10 represening a small fraction of 5.6%, remaning set are almost neglihgble amount to 2% of data
+
+-- 3.Which month has a greater average ‘speed’ - November or December? ##################################################
+-- Note that the variable ‘speed’ will have to be derived from other metrics.
+-- Hint: You have columns for distance and time.
+
+-- we will calculate duratiob by suntaring drop of time with pick uo time, since we are using unix timestamp function(as direct suntraction of timestamp column didn't work)
+-- values will be returned in sec hence we will be dividing it by 3600 to get value sin hour
+-- since distance is psecified in miles out final value will be in miles/hour unit
+
+select mnth , round(avg(trip_distance/((unix_timestamp(tpep_dropoff_datetime)-unix_timestamp(tpep_pickup_datetime) )/3600) ),2) avg_speed
+from maxim_assignment.ParOrc_Data_Maxim
+group by mnth
+order by avg_speed desc;
+--  11	12.69
+--	12	12.62
+-- Novenmeber month is marginally faster by 0.07 miles/hour
+-- this is unexpected that during the holiday seasons of december taxi are running slow
+-- but the minimilatic difference represents that NewYork never rest it works even through its holiday season
+
+
+
+-- 5.Analyse the average speed of the most happening days of the year, #########################################################################################
+-- i.e. 31st December (New year’s eve) and 25th December (Christmas Eve)
+-- and compare it with the overall average. 
+
+-- any trip that started on 25th or 31 will be considerd for teh avg calculation irrespective of the fact that it might have ended on the next day
+select IsHoliday, round(avg(speed),2) avg_speed from 
+(select case when ((tpep_pickup_datetime>='2017-12-25 00:00:00.0' and tpep_pickup_datetime<'2017-12-26 00:00:00.0') 
+or (tpep_pickup_datetime>='2017-12-31 00:00:00.0' and tpep_pickup_datetime<'2018-01-01 00:00:00.0')  ) then 1 else 0 end IsHoliday   , 
+trip_distance/((unix_timestamp(tpep_dropoff_datetime)-unix_timestamp(tpep_pickup_datetime) )/3600) speed
+from maxim_assignment.ParOrc_Data_Maxim) T
+group by IsHoliday
+order by avg_speed desc;
+-- 1	15.13
+-- 0	12.61
+select 15.13-12.61;
+-- The comparision between holiday vs non-holiday , the during the holiday atleast the streets of New York are clear(er)
+-- as the Cab's are running at a faster average speed by a margin of  2.52 miles/hour
+-- The non festive day average is in sync with november and december averages at around 12.6 miles/per hour
+-- let's confirm teh overall averages once
+select round(avg(trip_distance/((unix_timestamp(tpep_dropoff_datetime)-unix_timestamp(tpep_pickup_datetime) )/3600)),2) avg_speed
+from maxim_assignment.ParOrc_Data_Maxim;
+-- 12.66 is the overall avg speed as expected so the faster speed on 25th and 31 dec amounts to 0.05(12.61 was for non holiday days) increment on the overall speed 
+
+-- Let's compare individual days too
+-- christmas
+select Day_type,round(avg(trip_distance/((unix_timestamp(tpep_dropoff_datetime)-unix_timestamp(tpep_pickup_datetime) )/3600)),2) avg_speed
+from ( 
+select trip_distance,tpep_dropoff_datetime,tpep_pickup_datetime,
+case when ((tpep_pickup_datetime>='2017-12-25 00:00:00.0' and tpep_pickup_datetime<'2017-12-26 00:00:00.0')) then 1
+when ((tpep_pickup_datetime>='2017-12-31 00:00:00.0' and tpep_pickup_datetime<'2018-01-01 00:00:00.0')  ) then 2 else 0 end Day_type 
+from maxim_assignment.ParOrc_Data_Maxim
+) T
+group by Day_type;
+
+--  0	12.61 rest of the days
+--	1	16.86 Chritsmas
+--  2	14.07 new year eve
+-- The fasted avg speed is oberved on chrismat day @ 16.86 miles/hour; 2.79 miles/hour faster than new year eve mark of 14.07 miles/hour
+-- The result represent similar value to the combined is-holiday data i.e. Both are indidvidually much faster than the average time taken on other days  
